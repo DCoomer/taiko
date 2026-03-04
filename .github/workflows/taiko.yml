@@ -14,22 +14,19 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        node_version: ['20']
-        os: [ubuntu-latest, windows-latest]
+        node_version: ['20', '22', '24']
+        os: [ubuntu-22.04, windows-latest]
+      fail-fast: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Use NodeJS ${{ matrix.node_version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node_version }}
-      - name: Setup Biome
-        uses: biomejs/setup-biome@v2
-        with:
-          version: latest
       - name: install
-        run: npm install
+        run: npm ci
       - name: install browser dependencies
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y  libnss3 \
@@ -43,10 +40,11 @@ jobs:
             libdrm-dev \
             libgbm-dev \
             libasound-dev
-      - name: unit-tests
-        run: |
-          biome ci
-          npm test
+      - name: Run Biome
+        uses: biomejs/setup-biome@v2
+      - run: biome check packages/taiko
+      - name: Run unit tests
+        run: npm run test:unit:silent
 
   functional-tests:
     needs: unit-tests
@@ -54,17 +52,19 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        node_version: ['20']
-        os: [ubuntu-latest, windows-latest]
-
+        node_version: ['20', '22', '24']
+        os: [ubuntu-22.04, windows-latest]
+      fail-fast: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Use NodeJS ${{ matrix.node_version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node_version }}
+      - name: install
+        run: npm ci
       - name: install browser dependencies
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -83,29 +83,31 @@ jobs:
         run: npm run test-functional
 
       - name: Upload html report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: ft-reports-${{ matrix.os }}-${{ matrix.node_version }}
-          path: test/functional-tests/reports/html-report
+          path: tests/functional-tests/reports/html-report
 
       - name: Upload logs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: ft-logs-${{ matrix.os }}-${{ matrix.node_version }}
-          path: test/functional-tests/logs
+          path: tests/functional-tests/logs
 
   functional-tests-headful:
     needs: unit-tests
     name: FT in linux-headful
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - name: Use NodeJS 20
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - name: Use Node.js
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
+      - name: install
+        run: npm ci
       - name: install browser dependencies
         run: |
           sudo apt-get update
@@ -127,32 +129,32 @@ jobs:
         env:
           headless: false
           TAIKO_HIGHLIGHT_ON_ACTION: false
-        run: xvfb-run npm run test-functional
+        run: xvfb-run npm run test-functional --workspace=tests
       - name: Upload html report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: ft-reports-linux-headful
-          path: test/functional-tests/reports/html-report
+          path: tests/functional-tests/reports/html-report
       - name: Upload logs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: ft-logs-linux-headful
-          path: test/functional-tests/logs
+          path: tests/functional-tests/logs
 
   docs-tests:
     needs: unit-tests
     name: Docs tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - name: Use NodeJS 20
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - name: Use Node.js
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: 24
       - name: install
-        run: npm install
+        run: npm ci
       - name: install browser dependencies
         run: |
           sudo apt-get update
@@ -169,16 +171,16 @@ jobs:
             libgbm-dev \
             libasound-dev
       - name: test-docs
-        run: npm run test-docs
+        run: npm run test-docs --workspace=tests
       - name: Upload html report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: docs-tests-reports
-          path: test/docs-tests/gauge/reports/html-report
+          path: tests/docs-tests/gauge/reports/html-report
       - name: Upload logs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: docs-tests-logs
-          path: test/docs-tests/gauge/logs
+          path: tests/docs-tests/gauge/logs

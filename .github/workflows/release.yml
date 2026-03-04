@@ -6,22 +6,23 @@ jobs:
   release-and-bump-version:
     if: github.event.deployment.environment == 'production'
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write    # Required for OIDC trusted publishing to NPM
+      deployments: write # For updating deployment status
+      contents: read
     env:
       GITHUB_TOKEN: '${{ secrets.GAUGEBOT_GITHUB_TOKEN }}'
-      NPM_TOKEN: '${{ secrets.NPM_TOKEN }}'
       CI: true
-
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v1
+      - uses: actions/setup-node@v6
         with:
-          node-version: '16'
+          node-version: 24
           registry-url: 'https://registry.npmjs.org'
 
       - name: npm install
-        run: |
-          npm install
+        run: npm install
 
       - name: Setup git
         run: |
@@ -30,7 +31,7 @@ jobs:
 
       - name: Deploy on github
         run: |
-          version=$(grep '"version"' package.json | sed 's/"version":[[:space:]]*"//' | sed 's/",//' | tr -d [:space:])
+          version=$(grep '^  "version"' packages/taiko/package.json | sed 's/"version":[ ]*"//' | sed 's/",//' | tr -d ' ')
           if [ -z "$version" ]; then
               echo "Taiko version is not set"
               exit 1
@@ -38,8 +39,8 @@ jobs:
           echo -e "taiko v$version\n\n" > desc.txt
           release_description=$(ruby -e "$(curl -sSfL https://github.com/getgauge/gauge/raw/master/build/create_release_text.rb)" getgauge taiko)
           echo "$release_description" >> desc.txt
-          echo "Creating new draft for release v$version"
-          gh release create "v$version" -F ./desc.txt
+          echo "Creating new release v$version"
+          gh release create --title "v$version" --notes-file ./desc.txt "v$version"
           rm -rf desc.txt
 
       - name: 'deployment success'
@@ -57,7 +58,6 @@ jobs:
           token: '${{ secrets.GITHUB_TOKEN }}'
 
       - name: Deploy npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          npm publish --access=public
+        run: | # See https://github.com/actions/setup-node/issues/1440
+          unset NODE_AUTH_TOKEN
+          npm publish --workspace=taiko --access=public
